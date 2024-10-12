@@ -1,7 +1,9 @@
-# Tauri + React + Typescript
+# pcoplayer
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+macOS でも動く PCRPlayer もどきです。
 
-## Recommended IDE Setup
+作りかけです。
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+URL をコピーしておいて Ctrl(Cmd) + V すると、再生が始まったり、掲示板に書き込めるようになったりします。
+
+一応これを自分用に運用するつもりではいます。

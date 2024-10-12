@@ -1,53 +1,60 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
+import { makeStyles } from "@fluentui/react-components";
 import "./App.css";
+import Info from "./components/Info";
+import Comment from "./components/Comment";
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+const useStyles = makeStyles({
+  container: {
+    display: "flex",
+    flexDirection: "column",
+    width: "100%",
+    height: "100%",
+  },
+  video: {
+    backgroundColor: "#000",
+  },
+});
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
-    setGreetMsg(await invoke("greet", { name }));
-  }
+export default function App(props: {
+  mainRef: React.RefObject<HTMLDivElement>;
+  videoRef: React.RefObject<HTMLVideoElement>;
+  interfaceRef: React.RefObject<HTMLDivElement>;
+  textareaRef: React.RefObject<HTMLTextAreaElement>;
+  threadName: string;
+  message?: {
+    intent: "success" | "error";
+    text: string;
+  } | null;
+  onResizeVideo(videoWidth: number, videoHeight: number): void;
+  onResizeFrame(): void;
+  onMouseDownVideo(ev: React.MouseEvent): void;
+  onClickPost(comment: string): void;
+}): JSX.Element {
+  const classes = useStyles();
 
   return (
-    <div className="container">
-      <h1>Welcome to Tauri!</h1>
-
-      <div className="row">
-        <a href="https://vitejs.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://reactjs.org" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
+    <main className={classes.container} ref={props.mainRef}>
+      <video
+        className={classes.video}
+        ref={props.videoRef}
+        onMouseDown={props.onMouseDownVideo}
+        onResize={(ev) => {
+          const target = ev.currentTarget;
+          props.onResizeVideo(target.videoWidth, target.videoHeight);
         }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
+      />
+      <div ref={props.interfaceRef}>
+        <Info
+          threadName={props.threadName}
+          message={props.message}
+          onResize={props.onResizeFrame}
         />
-        <button type="submit">Greet</button>
-      </form>
-
-      <p>{greetMsg}</p>
-    </div>
+        <Comment
+          textareaRef={props.textareaRef}
+          onResize={props.onResizeFrame}
+          onClickPost={props.onClickPost}
+        />
+      </div>
+    </main>
   );
 }
-
-export default App;
