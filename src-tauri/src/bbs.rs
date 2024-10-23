@@ -1,13 +1,16 @@
 mod compatible;
+mod shitaraba;
 
 use core::str;
 
-use anyhow::{anyhow, bail, Result};
-use compatible::Compatible;
+use anyhow::{anyhow, Result};
 use encoding_rs::{Encoding, UTF_8};
 use futures::StreamExt;
 use regex::Regex;
 use url::Url;
+
+use self::compatible::Compatible;
+use self::shitaraba::Shitaraba;
 
 pub const UA: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
@@ -19,10 +22,10 @@ pub trait Thread: Send + Sync {
 pub async fn new(url: &Url) -> Result<Box<dyn Thread>> {
     let host = url.host_str().ok_or_else(|| anyhow!("No host"))?;
     let path = url.path();
-    if !is_shitaraba_bbs(host, path) {
-        Ok(Box::new(Compatible::new(url).await?))
+    if is_shitaraba_bbs(host, path) {
+        Ok(Box::new(Shitaraba::new(url).await?))
     } else {
-        bail!("Shitaraba BBS is not supported: {}", url)
+        Ok(Box::new(Compatible::new(url).await?))
     }
 }
 
@@ -37,36 +40,35 @@ fn is_shitaraba_bbs(host: &str, path: &str) -> bool {
 }
 
 pub enum BbsUrl {
+    ProbablyShitarabaThread(Url, Box<dyn Thread>),
+    ProbablyShitarabaBoard(Url, String, u64),
     ProbablyCompatibleThread(Url, Box<dyn Thread>),
-    ProbablyShitaraba(Url),
     MaybeCompatibleBoard(Url, String),
 }
+
 impl BbsUrl {
     pub fn into_url(self) -> Url {
         match self {
+            BbsUrl::ProbablyShitarabaThread(url, _) => url,
+            BbsUrl::ProbablyShitarabaBoard(url, _, _) => url,
             BbsUrl::ProbablyCompatibleThread(url, _) => url,
-            BbsUrl::ProbablyShitaraba(url) => url,
             BbsUrl::MaybeCompatibleBoard(url, _) => url,
         }
     }
 }
 
 pub fn parse_bbs_url(url: Url) -> Result<BbsUrl, Url> {
-    let Some(host) = url.host_str() else {
-        return Err(url);
-    };
-    let path = url.path();
+    if let Some(thread) = shitaraba::parse_thread_url(&url) {
+        return Ok(BbsUrl::ProbablyShitarabaThread(url, Box::new(thread)));
+    }
+    if let Some((dir, board)) = shitaraba::parse_board_url(&url) {
+        return Ok(BbsUrl::ProbablyShitarabaBoard(url, dir, board));
+    }
     if let Some(thread) = compatible::parse_thread_url(&url) {
-        return Ok(BbsUrl::ProbablyCompatibleThread(
-            url.clone(),
-            Box::new(thread),
-        ));
+        return Ok(BbsUrl::ProbablyCompatibleThread(url, Box::new(thread)));
     }
     if let Some(board) = compatible::parse_board_url(&url) {
         return Ok(BbsUrl::MaybeCompatibleBoard(url, board));
-    }
-    if is_shitaraba_bbs(host, path) {
-        return Ok(BbsUrl::ProbablyShitaraba(url));
     }
     Err(url)
 }
@@ -117,12 +119,19 @@ async fn fetch_charset_title_pair(url: &Url) -> Result<(String, String)> {
 
 pub async fn fetch_thread_url_encoding_name(bbs_url: &BbsUrl) -> Result<(Url, String, String)> {
     match bbs_url {
-        BbsUrl::ProbablyCompatibleThread(url, _thread) => {
+        BbsUrl::ProbablyShitarabaThread(url, _thread) => {
             let (encoding, title) = fetch_charset_title_pair(url).await?;
             Ok((url.clone(), encoding, title))
         }
-        BbsUrl::ProbablyShitaraba(url) => {
-            bail!("Shitaraba BBS is not supported yet: {}", url)
+        BbsUrl::ProbablyShitarabaBoard(url, dir, board) => {
+            let origin = url.origin().ascii_serialization();
+            let url = shitaraba::fetch_latest_thread_url(&origin, dir, *board).await?;
+            let (encoding, title) = fetch_charset_title_pair(&url).await?;
+            Ok((url, encoding, title))
+        }
+        BbsUrl::ProbablyCompatibleThread(url, _thread) => {
+            let (encoding, title) = fetch_charset_title_pair(url).await?;
+            Ok((url.clone(), encoding, title))
         }
         BbsUrl::MaybeCompatibleBoard(url, board) => {
             let origin = url.origin().ascii_serialization();

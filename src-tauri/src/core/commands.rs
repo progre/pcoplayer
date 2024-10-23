@@ -1,4 +1,5 @@
 use anyhow::Result;
+use log::error;
 use tauri::{Manager, Window};
 use url::Url;
 
@@ -82,9 +83,10 @@ pub async fn post(
 ) -> Result<(), String> {
     let url = Url::parse(&url).map_err(|x| x.to_string())?;
     let bbs = bbs::new(&url).await.map_err(|x| x.to_string())?;
-    bbs.post(&charset, &name, &email, &msg)
-        .await
-        .map_err(|x| x.to_string())?;
+    bbs.post(&charset, &name, &email, &msg).await.map_err(|x| {
+        error!("{:?}", x);
+        x.to_string()
+    })?;
     Ok(())
 }
 

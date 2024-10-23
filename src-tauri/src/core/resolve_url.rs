@@ -94,6 +94,7 @@ pub async fn resolve_url(url_str: &str) -> Result<UrlType> {
                 });
             }
             Err(e) => {
+                log::trace!("{:?}", e);
                 warn!("Failed to fetch thread URL: {}", e);
                 bbs_url.into_url()
             }
